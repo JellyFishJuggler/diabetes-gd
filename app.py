@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
@@ -12,7 +12,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from GradientDescent import GradientDescent
 
 # -----------------------------------------------------
-# PAGE CONFIG & STYLING
+# PAGE CONFIG
 # -----------------------------------------------------
 st.set_page_config(
     page_title="Diabetes Gradient Descent Studio",
@@ -20,23 +20,107 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for modern card containers and clean typography
-st.markdown("""
-    <style>
-    .main {
-        background-color: #0e1117;
-    }
-    .stMetric {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #30363d;
-    }
-    .stDataFrame {
-        border-radius: 10px;
-    }
-    </style>
+# -----------------------------------------------------
+# DESIGN TOKENS
+# Palette: near-black navy base, amber = "signal" (glucose/warmth),
+# teal = "cost descending / cooling" — tied to the subject, not a default.
+# -----------------------------------------------------
+BG = "#0A0E17"
+SURFACE = "#121826"
+BORDER = "#232B3D"
+INK = "#EDF0F5"
+MUTED = "#8A93A8"
+AMBER = "#F2A65A"
+TEAL = "#45C7B5"
+
+FONT_DISPLAY = "'Space Grotesk', sans-serif"
+FONT_BODY = "'Inter', sans-serif"
+FONT_MONO = "'IBM Plex Mono', monospace"
+
+st.markdown(f"""
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+    html, body, [class*="css"] {{
+        font-family: {FONT_BODY};
+    }}
+    .stApp {{
+        background-color: {BG};
+        color: {INK};
+    }}
+    h1, h2, h3, h4 {{
+        font-family: {FONT_DISPLAY} !important;
+        letter-spacing: -0.01em;
+    }}
+    section[data-testid="stSidebar"] {{
+        background-color: {SURFACE};
+        border-right: 1px solid {BORDER};
+    }}
+    div[data-testid="stMetric"] {{
+        background-color: {SURFACE};
+        border: 1px solid {BORDER};
+        border-radius: 12px;
+        padding: 16px 18px;
+    }}
+    div[data-testid="stMetricValue"] {{
+        font-family: {FONT_MONO};
+        color: {AMBER};
+    }}
+    div[data-testid="stMetricLabel"] {{
+        color: {MUTED};
+    }}
+    .studio-chip {{
+        display: inline-block;
+        background-color: {SURFACE};
+        border: 1px solid {BORDER};
+        border-radius: 999px;
+        padding: 6px 14px;
+        margin: 4px 6px 4px 0;
+        font-family: {FONT_MONO};
+        font-size: 0.82rem;
+        color: {TEAL};
+    }}
+    .studio-card {{
+        background-color: {SURFACE};
+        border: 1px solid {BORDER};
+        border-radius: 14px;
+        padding: 22px 24px;
+        margin-bottom: 14px;
+    }}
+    .studio-eyebrow {{
+        font-family: {FONT_MONO};
+        color: {AMBER};
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }}
+    .studio-hero-number {{
+        font-family: {FONT_DISPLAY};
+        font-size: 3.1rem;
+        font-weight: 700;
+        color: {INK};
+        line-height: 1.1;
+    }}
+    hr {{
+        border-color: {BORDER} !important;
+    }}
+</style>
 """, unsafe_allow_html=True)
+
+
+def themed_fig(fig, height=440):
+    """Apply the studio's dark theme to any Plotly figure."""
+    fig.update_layout(
+        paper_bgcolor=SURFACE,
+        plot_bgcolor=SURFACE,
+        font=dict(family=FONT_BODY, color=INK, size=13),
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=height,
+        legend=dict(bgcolor="rgba(0,0,0,0)"),
+    )
+    fig.update_xaxes(gridcolor=BORDER, zerolinecolor=BORDER)
+    fig.update_yaxes(gridcolor=BORDER, zerolinecolor=BORDER)
+    return fig
+
 
 # -----------------------------------------------------
 # LOAD DATA
@@ -63,225 +147,213 @@ X_test_scaled = scaler.transform(X_test)
 # -----------------------------------------------------
 # SIDEBAR
 # -----------------------------------------------------
-st.sidebar.title("🧭 Navigation")
+st.sidebar.markdown(f"""
+<div style="padding: 6px 0 18px 0;">
+    <div class="studio-eyebrow">ML from Scratch</div>
+    <div style="font-family:{FONT_DISPLAY}; font-size:1.3rem; font-weight:700; color:{INK};">
+        Gradient Descent Studio
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 page = st.sidebar.radio(
-    "Select Page",
-    [
-        "Home",
-        "Dataset",
-        "Preprocessing",
-        "SGD Regressor",
-        "Gradient Descent",
-        "3D Cost Surface",
-        "Conclusion"
-    ]
+    "Navigate",
+    ["Home", "Dataset", "Preprocessing", "Models", "Cost Landscape", "Conclusion"],
+    label_visibility="collapsed"
 )
 
 st.sidebar.markdown("---")
-st.sidebar.info("💡 **Tip:** Use the custom sliders under *Gradient Descent* to inspect live learning updates.")
+st.sidebar.markdown(
+    f"<span style='color:{MUTED}; font-size:0.85rem;'>💡 Adjust sliders on "
+    f"<b style='color:{TEAL}'>Models</b> and watch the descent path change on "
+    f"<b style='color:{AMBER}'>Cost Landscape</b>.</span>",
+    unsafe_allow_html=True
+)
 
 # =====================================================
 # HOME
 # =====================================================
 if page == "Home":
-    st.title("📉 Diabetes Gradient Descent Studio")
-    st.markdown("An interactive workspace exploring **Linear Regression** via Scikit-learn and custom **Gradient Descent from Scratch**[cite: 1].")
-    
-    st.markdown("---")
+    st.markdown("<div class='studio-eyebrow'>Diabetes · Blood Pressure · Regression</div>", unsafe_allow_html=True)
+    st.markdown("<div class='studio-hero-number'>Predicting Blood Pressure</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color:{MUTED}; font-size:1.05rem; max-width:640px;'>"
+        f"A from-scratch Gradient Descent engine, benchmarked against Scikit-learn's SGD Regressor, "
+        f"on the classic sklearn Diabetes dataset.</p>",
+        unsafe_allow_html=True
+    )
 
-    # Grid layout for high-level metrics
+    st.markdown("<br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Samples", len(df))
-    c2.metric("Total Features", len(df.columns))
-    c3.metric("Target Variable", "Blood Pressure")
+    c1.metric("Samples", len(df))
+    c2.metric("Features", len(df.columns))
+    c3.metric("Target", "Blood Pressure")
 
-    st.markdown("### 🧩 Feature Overview")
-    st.write(list(df.columns))
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='studio-eyebrow'>Feature set</div>", unsafe_allow_html=True)
+    chips = "".join([f"<span class='studio-chip'>{c}</span>" for c in df.columns])
+    st.markdown(chips, unsafe_allow_html=True)
 
 # =====================================================
 # DATASET
 # =====================================================
 elif page == "Dataset":
-    st.title("📊 Dataset Overview & Correlation")
+    st.markdown("<div class='studio-eyebrow'>Exploration</div>", unsafe_allow_html=True)
+    st.markdown("## Dataset & Correlation")
 
-    # Side-by-side layout for preview and stats
-    tab1, tab2 = st.tabs(["Data Preview", "Statistical Summary"])
+    tab1, tab2 = st.tabs(["Preview", "Statistical Summary"])
     with tab1:
         st.dataframe(df.head(10), use_container_width=True)
     with tab2:
         st.dataframe(df.describe(), use_container_width=True)
 
-    st.markdown("---")
-    st.subheader("Feature Correlation with Blood Pressure")
-    
-    corr = df.corr(numeric_only=True)["bp"].sort_values()
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### Feature correlation with Blood Pressure")
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    corr.plot(kind="barh", ax=ax, color="#4f46e5")
-    ax.set_xlabel("Correlation Coefficient")
-    ax.grid(True, linestyle=":", alpha=0.5)
-    st.pyplot(fig)
+    corr = df.corr(numeric_only=True)["bp"].drop("bp").sort_values()
+    colors = [TEAL if v < 0 else AMBER for v in corr.values]
+
+    fig = go.Figure(go.Bar(x=corr.values, y=corr.index, orientation="h", marker_color=colors))
+    fig.update_layout(xaxis_title="Correlation Coefficient", yaxis_title="")
+    st.plotly_chart(themed_fig(fig, height=420), use_container_width=True)
 
 # =====================================================
 # PREPROCESSING
 # =====================================================
 elif page == "Preprocessing":
-    st.title("⚙️ Feature Scaling Analysis")
+    st.markdown("<div class='studio-eyebrow'>Preparation</div>", unsafe_allow_html=True)
+    st.markdown("## Feature Scaling")
 
     c1, c2 = st.columns(2)
     c1.metric("Training Samples", len(X_train))
     c2.metric("Testing Samples", len(X_test))
 
-    st.markdown("---")
-
-    feature = st.selectbox("Select Feature to Visualize Distribution", X.columns)
+    st.markdown("<br>", unsafe_allow_html=True)
+    feature = st.selectbox("Feature to inspect", X.columns)
     idx = X.columns.get_loc(feature)
 
     before = X_train.iloc[:, idx]
     after = X_train_scaled[:, idx]
 
-    # Grid Layout: Side-by-side distributions
-    col_chart1, col_chart2 = st.columns(2)
-
-    with col_chart1:
-        st.subheader("Original Distribution")
-        fig1, ax1 = plt.subplots(figsize=(6, 4))
-        ax1.hist(before, bins=20, color="#f97316", alpha=0.8, edgecolor="black")
-        ax1.set_title(f"Original: {feature}")
-        ax1.grid(True, linestyle=":", alpha=0.4)
-        st.pyplot(fig1)
-
-    with col_chart2:
-        st.subheader("Standard Scaled Distribution")
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
-        ax2.hist(after, bins=20, color="#06b6d4", alpha=0.8, edgecolor="black")
-        ax2.set_title(f"Scaled: {feature}")
-        ax2.grid(True, linestyle=":", alpha=0.4)
-        st.pyplot(fig2)
+    col1, col2 = st.columns(2)
+    with col1:
+        fig1 = go.Figure(go.Histogram(x=before, marker_color=AMBER, nbinsx=20))
+        fig1.update_layout(title=f"Original — {feature}")
+        st.plotly_chart(themed_fig(fig1, height=360), use_container_width=True)
+    with col2:
+        fig2 = go.Figure(go.Histogram(x=after, marker_color=TEAL, nbinsx=20))
+        fig2.update_layout(title=f"Scaled — {feature}")
+        st.plotly_chart(themed_fig(fig2, height=360), use_container_width=True)
 
 # =====================================================
-# SGD REGRESSOR
+# MODELS
 # =====================================================
-elif page == "SGD Regressor":
-    st.title("🤖 Scikit-learn SGD Regressor Workspace")
+elif page == "Models":
+    st.markdown("<div class='studio-eyebrow'>Optimization</div>", unsafe_allow_html=True)
+    st.markdown("## Model Workspace")
 
-    alpha = st.slider("Regularization Alpha", 0.000001, 1.0, 0.01, format="%.6f")
+    tab_sgd, tab_gd = st.tabs(["Scikit-learn SGD Regressor", "Custom Gradient Descent"])
 
-    model = SGDRegressor(alpha=alpha, random_state=42)
-    model.fit(X_train_scaled, y_train)
-    pred = model.predict(X_test_scaled)
+    # ---------------- SGD Regressor ----------------
+    with tab_sgd:
+        alpha = st.slider("Regularization Alpha", 0.000001, 1.0, 0.01, format="%.6f", key="alpha")
 
-    mae = mean_absolute_error(y_test, pred)
-    mse = mean_squared_error(y_test, pred)
-    r2 = r2_score(y_test, pred)
+        model = SGDRegressor(alpha=alpha, random_state=42)
+        model.fit(X_train_scaled, y_train)
+        pred = model.predict(X_test_scaled)
 
-    # Metric Grid
-    c1, c2, c3 = st.columns(3)
-    c1.metric("MAE", f"{mae:.3f}")
-    c2.metric("MSE", f"{mse:.3f}")
-    c3.metric("R² Score", f"{r2:.3f}")
+        mae = mean_absolute_error(y_test, pred)
+        mse = mean_squared_error(y_test, pred)
+        r2 = r2_score(y_test, pred)
 
-    st.markdown("---")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("MAE", f"{mae:.3f}")
+        c2.metric("MSE", f"{mse:.3f}")
+        c3.metric("R² Score", f"{r2:.3f}")
 
-    # Grid Layout for Charts: Coefficients vs Performance
-    col_left, col_right = st.columns(2)
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_left, col_right = st.columns(2)
 
-    with col_left:
-        st.subheader("Feature Coefficients")
-        coef_df = pd.DataFrame({
-            "Feature": X.columns,
-            "Coefficient": model.coef_
-        }).sort_values("Coefficient")
+        with col_left:
+            coef_df = pd.DataFrame({"Feature": X.columns, "Coefficient": model.coef_}).sort_values("Coefficient")
+            fig = go.Figure(go.Bar(
+                x=coef_df["Coefficient"], y=coef_df["Feature"], orientation="h",
+                marker_color=[TEAL if v < 0 else AMBER for v in coef_df["Coefficient"]]
+            ))
+            fig.update_layout(title="Feature Coefficients")
+            st.plotly_chart(themed_fig(fig, height=400), use_container_width=True)
 
-        fig, ax = plt.subplots(figsize=(6, 5))
-        ax.barh(coef_df["Feature"], coef_df["Coefficient"], color="#8b5cf6")
-        ax.grid(True, linestyle=":", alpha=0.5)
-        st.pyplot(fig)
+        with col_right:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=y_test, y=pred, mode="markers",
+                                      marker=dict(color=AMBER, size=7, opacity=0.75), name="Prediction"))
+            mn, mx = min(y_test.min(), pred.min()), max(y_test.max(), pred.max())
+            fig.add_trace(go.Scatter(x=[mn, mx], y=[mn, mx], mode="lines",
+                                      line=dict(color=MUTED, dash="dash"), name="Ideal"))
+            fig.update_layout(title="Predicted vs Actual", xaxis_title="Actual BP", yaxis_title="Predicted BP")
+            st.plotly_chart(themed_fig(fig, height=400), use_container_width=True)
 
-    with col_right:
-        st.subheader("Predicted vs Actual")
-        fig, ax = plt.subplots(figsize=(6, 5))
-        ax.scatter(y_test, pred, alpha=0.7, color="#ec4899")
-        mn = min(y_test.min(), pred.min())
-        mx = max(y_test.max(), pred.max())
-        ax.plot([mn, mx], [mn, mx], "k--", lw=2)
-        ax.set_xlabel("Actual BP")
-        ax.set_ylabel("Predicted BP")
-        ax.grid(True, linestyle=":", alpha=0.5)
-        st.pyplot(fig)
+    # ---------------- Custom Gradient Descent ----------------
+    with tab_gd:
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            learning_rate = st.slider("Learning Rate", 0.001, 1.0, 0.1, key="gd_lr")
+        with col_s2:
+            iterations = st.slider("Iterations", 10, 500, 100, key="gd_iter")
 
-# =====================================================
-# GRADIENT DESCENT
-# =====================================================
-elif page == "Gradient Descent":
-    st.title("📈 Custom Gradient Descent Engine")
+        bmi_idx = X.columns.get_loc("bmi")
+        X_train_new = X_train_scaled[:, [bmi_idx]]
+        X_test_new = X_test_scaled[:, [bmi_idx]]
 
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        learning_rate = st.slider("Learning Rate", 0.001, 1.0, 0.1, key="gd_lr")
-    with col_s2:
-        iterations = st.slider("Iterations", 10, 500, 100, key="gd_iter")
+        gd = GradientDescent(alfa=learning_rate, iterations=iterations)
+        gd.fit(X_train_new, y_train.values, track_history=True)
 
-    bmi_idx = X.columns.get_loc("bmi")
-    X_train_new = X_train_scaled[:, [bmi_idx]]
-    X_test_new = X_test_scaled[:, [bmi_idx]]
+        slope = gd.m
+        intercept = gd.c
+        history = np.array([[h_m[0], h_c, h_cost] for h_m, h_c, h_cost in gd.history])
 
-    gd = GradientDescent(alfa=learning_rate, iterations=iterations)
-    gd.fit(X_train_new, y_train.values, track_history=True)
+        pred = (X_test_new @ slope + intercept).ravel()
+        mse = mean_squared_error(y_test, pred)
+        r2 = r2_score(y_test, pred)
 
-    slope = gd.m
-    intercept = gd.c
-    history = np.array([[h_m[0], h_c, h_cost] for h_m, h_c, h_cost in gd.history])
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Slope", f"{float(slope[0]):.3f}")
+        c2.metric("Intercept", f"{intercept:.3f}")
+        c3.metric("MSE", f"{mse:.3f}")
+        c4.metric("R² Score", f"{r2:.3f}")
 
-    pred = (X_test_new @ slope + intercept).ravel()
-    mse = mean_squared_error(y_test, pred)
-    r2 = r2_score(y_test, pred)
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_g1, col_g2 = st.columns(2)
 
-    st.markdown("---")
-    
-    # Metrics Row
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Slope (Weight)", f"{float(slope[0]):.3f}")
-    c2.metric("Intercept", f"{intercept:.3f}")
-    c3.metric("MSE", f"{mse:.3f}")
-    c4.metric("R² Score", f"{r2:.3f}")
+        with col_g1:
+            fig = go.Figure(go.Scatter(y=history[:, 2], mode="lines", line=dict(color=AMBER, width=3)))
+            fig.update_layout(title="Cost vs Iteration", xaxis_title="Iteration", yaxis_title="Cost (MSE)")
+            st.plotly_chart(themed_fig(fig, height=380), use_container_width=True)
 
-    st.markdown("---")
+        with col_g2:
+            line_x = np.linspace(X_train_new[:, 0].min(), X_train_new[:, 0].max(), 100)
+            line_y = line_x * float(slope[0]) + intercept
 
-    # Grid Layout for Visualizations
-    col_g1, col_g2 = st.columns(2)
-
-    with col_g1:
-        st.subheader("Cost vs Iteration")
-        history_df = pd.DataFrame(history, columns=["Slope", "Intercept", "Cost"])
-        fig, ax = plt.subplots(figsize=(6, 4.5))
-        ax.plot(history_df["Cost"], color="#ef4444", linewidth=2.5)
-        ax.set_xlabel("Iteration")
-        ax.set_ylabel("Cost (MSE)")
-        ax.grid(True, linestyle=":", alpha=0.6)
-        st.pyplot(fig)
-
-    with col_g2:
-        st.subheader("Fitted Regression Line (BMI)")
-        fig, ax = plt.subplots(figsize=(6, 4.5))
-        ax.scatter(X_train_new[:, 0], y_train, alpha=0.5, color="#3b82f6", label="Data")
-        
-        line_x = np.linspace(X_train_new[:, 0].min(), X_train_new[:, 0].max(), 100).reshape(-1, 1)
-        line_y = (line_x @ slope + intercept).ravel()
-        ax.plot(line_x[:, 0], line_y, color="#10b981", linewidth=3, label="Fit Line")
-        
-        ax.set_xlabel("BMI (Scaled)")
-        ax.set_ylabel("Blood Pressure")
-        ax.legend()
-        ax.grid(True, linestyle=":", alpha=0.6)
-        st.pyplot(fig)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=X_train_new[:, 0], y=y_train, mode="markers",
+                                      marker=dict(color=TEAL, size=6, opacity=0.5), name="Data"))
+            fig.add_trace(go.Scatter(x=line_x, y=line_y, mode="lines",
+                                      line=dict(color=AMBER, width=3), name="Fit"))
+            fig.update_layout(title="Fitted Line — BMI vs BP", xaxis_title="BMI (scaled)", yaxis_title="Blood Pressure")
+            st.plotly_chart(themed_fig(fig, height=380), use_container_width=True)
 
 # =====================================================
-# 3D COST SURFACE
+# COST LANDSCAPE (3D)
 # =====================================================
-elif page == "3D Cost Surface":
-    st.title("🌋 3D Cost Surface Landscape")
-    st.markdown("Visualizing the optimization path over the error surface for slope and intercept parameters.")
+elif page == "Cost Landscape":
+    st.markdown("<div class='studio-eyebrow'>The Descent</div>", unsafe_allow_html=True)
+    st.markdown("## 3D Cost Surface & Optimization Path")
+    st.markdown(
+        f"<p style='color:{MUTED};'>Every point on this surface is a possible (slope, intercept) pair — "
+        f"height is the resulting error. The line traces gradient descent's actual path down to the minimum. "
+        f"Drag to rotate.</p>",
+        unsafe_allow_html=True
+    )
 
     bmi_idx = X.columns.get_loc("bmi")
     X_train_new = X_train_scaled[:, [bmi_idx]]
@@ -291,6 +363,7 @@ elif page == "3D Cost Surface":
 
     slope = gd.m
     intercept = gd.c
+    history = np.array([[h_m[0], h_c, h_cost] for h_m, h_c, h_cost in gd.history])
 
     def cost(m, c, x, y):
         pred = x * m + c
@@ -300,38 +373,66 @@ elif page == "3D Cost Surface":
     c_vals = np.linspace(intercept - 10, intercept + 10, 50)
     M, C = np.meshgrid(m_vals, c_vals)
     Z = np.zeros_like(M)
-
     for i in range(M.shape[0]):
         for j in range(M.shape[1]):
             Z[i, j] = cost(M[i, j], C[i, j], X_train_new, y_train.values)
 
-    fig = plt.figure(figsize=(10, 7))
-    ax = fig.add_subplot(111, projection="3d")
+    fig = go.Figure()
 
-    surface = ax.plot_surface(M, C, Z, cmap="plasma", alpha=0.85, edgecolor="none")
-    ax.scatter(
-        float(slope[0]), intercept, 
-        cost(float(slope[0]), intercept, X_train_new, y_train.values),
-        color="cyan", s=100, label="Final Parameters"
+    fig.add_trace(go.Surface(
+        x=M, y=C, z=Z,
+        colorscale=[[0, SURFACE], [0.5, TEAL], [1, AMBER]],
+        opacity=0.85, showscale=True,
+        colorbar=dict(title="Cost", tickfont=dict(color=INK)),
+        contours_z=dict(show=True, usecolormap=True, project_z=True)
+    ))
+
+    fig.add_trace(go.Scatter3d(
+        x=history[:, 0], y=history[:, 1], z=history[:, 2],
+        mode="lines+markers",
+        line=dict(color=INK, width=4),
+        marker=dict(size=3, color=np.arange(len(history)), colorscale=[[0, TEAL], [1, AMBER]]),
+        name="Descent Path"
+    ))
+
+    fig.add_trace(go.Scatter3d(
+        x=[float(slope[0])], y=[intercept], z=[float(history[-1, 2])],
+        mode="markers", marker=dict(size=7, color=AMBER, symbol="diamond"),
+        name="Converged"
+    ))
+
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(title="Slope", backgroundcolor=SURFACE, gridcolor=BORDER, color=INK),
+            yaxis=dict(title="Intercept", backgroundcolor=SURFACE, gridcolor=BORDER, color=INK),
+            zaxis=dict(title="Cost", backgroundcolor=SURFACE, gridcolor=BORDER, color=INK),
+            bgcolor=SURFACE,
+        ),
+        paper_bgcolor=SURFACE,
+        font=dict(family=FONT_BODY, color=INK),
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=640,
     )
 
-    ax.set_xlabel("Slope")
-    ax.set_ylabel("Intercept")
-    ax.set_zlabel("Cost")
-    ax.legend()
-    fig.colorbar(surface, shrink=0.5, aspect=10)
-
-    st.pyplot(fig)
+    st.plotly_chart(fig, use_container_width=True)
 
 # =====================================================
 # CONCLUSION
 # =====================================================
 else:
-    st.title("✅ Summary & Architecture")
+    st.markdown("<div class='studio-eyebrow'>Summary</div>", unsafe_allow_html=True)
+    st.markdown("## Architecture & Takeaways")
 
-    st.markdown("""
-    ### Key Takeaways
-    - **Modular Design**: Leveraged an isolated external `GradientDescent.py` script containing a custom loop structure[cite: 1].
-    - **Interactive Optimization**: Tracked convergence metrics step-by-step using internal state histories.
-    - **Comparative Insight**: Evaluated custom scratch code against Scikit-Learn's native optimization algorithms seamlessly.
-    """)
+    cards = [
+        ("Modular Design", "An isolated GradientDescent.py module implements the custom optimization loop, kept separate from the app/UI layer."),
+        ("Tracked Convergence", "Every iteration's slope, intercept, and cost are recorded, powering both the cost curve and the 3D descent path."),
+        ("Benchmarked, Not Assumed", "The scratch implementation is validated against Scikit-learn's SGDRegressor on the same data and split."),
+    ]
+
+    for title, desc in cards:
+        st.markdown(f"""
+        <div class="studio-card">
+            <div style="font-family:{FONT_DISPLAY}; font-weight:600; font-size:1.05rem; color:{AMBER}; margin-bottom:6px;">{title}</div>
+            <div style="color:{MUTED};">{desc}</div>
+        </div>
+        """, unsafe_allow_html=True)
